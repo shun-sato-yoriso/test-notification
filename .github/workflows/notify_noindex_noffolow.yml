@@ -1,4 +1,4 @@
-name: Notify Slack on noindex,nofollow in diffs
+name: Notify Slack on noindex or nofollow in diffs
 on:
   push:
     branches:
@@ -20,12 +20,12 @@ jobs:
         run: |
           echo "MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.sha }})" >> $GITHUB_ENV
 
-      - name: Check for noindex,nofollow
+      - name: Check for noindex or nofollow
         id: check
         run: |
           DIFF_OUTPUT=$(git diff ${{ env.MERGE_BASE }} ${{ github.sha }} -- '*.html' '*.vue')
           echo "$DIFF_OUTPUT"
-          if echo "$DIFF_OUTPUT" | grep -q "noindex,nofollow"; then
+          if echo "$DIFF_OUTPUT" | grep -Eq "noindex|nofollow"; then
             echo "FOUND=yes" >> $GITHUB_ENV
           fi
 
@@ -43,7 +43,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "警告: noindex,nofollow が含まれるコミットがマージされました！"
+                    "text": "警告: noindex もしくは nofollow が含まれるコミットがマージされました！"
                   }
                 }]
               }]
