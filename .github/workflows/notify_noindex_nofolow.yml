@@ -1,13 +1,3 @@
-name: Notify Slack on noindex or nofollow in diffs
-
-on:
-  pull_request:
-    types: [closed]
-    branches:
-      - staging-delta
-      - develop
-      - main
-
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
@@ -16,18 +6,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 全ての履歴を取得
 
       - name: Check diff for 'noindex' or 'nofollow'
         run: |
-          # マージ前のヘッドコミットを取得
-          HEAD_SHA=$(git rev-parse ${{ github.event.pull_request.head.sha }})
-          # ベースブランチのマージ直前のコミットを取得
-          BASE_SHA=$(git merge-base origin/${{ github.base_ref }} $HEAD_SHA)
+          # プルリクエストのマージコミットを取得
+          MERGE_COMMIT_SHA=${{ github.event.pull_request.merge_commit_sha }}
+          # マージコミットの親を取得
+          PARENT_SHA=$(git rev-parse $MERGE_COMMIT_SHA^)
 
-          # マージ前のコミットとの差分をチェック
-          echo "Diff between $BASE_SHA and $HEAD_SHA"
-          if git diff $BASE_SHA $HEAD_SHA -- '*.html' '*.vue' | grep -Ei 'noindex|nofollow'; then
+          echo "Diff between $PARENT_SHA and $MERGE_COMMIT_SHA"
+
+          # マージコミットの親とマージコミットとの間の差分をチェック
+          if git diff $PARENT_SHA $MERGE_COMMIT_SHA -- '*.html' '*.vue' '*.ts' | grep -Ei 'noindex|nofollow'; then
             echo "Found 'noindex' or 'nofollow'"
             FOUND=true
           else
@@ -49,7 +40,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "警告: noindex または nofollow が含まれるコミットがマージされました"
+                    "text": "警告: noindex または nofollow が含まれるコミットがマージされました！"
                   }
                 }]
               }]
