@@ -22,17 +22,28 @@ jobs:
         run: |
           echo "MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.event.pull_request.merge_commit_sha }})" >> $GITHUB_ENV
 
-      - name: Check for noindex or nofollow
-        id: check
+      - name: Check diff for 'noindex' or 'nofollow'
+        id: check_diff
         run: |
-          DIFF_OUTPUT=$(git diff ${{ env.MERGE_BASE }} ${{ github.event.pull_request.merge_commit_sha }} -- '*.html' '*.vue')
-          echo "$DIFF_OUTPUT"
-          if echo "$DIFF_OUTPUT" | grep -q -e 'noindex' -e 'nofollow'; then
-            echo "FOUND=yes" >> $GITHUB_ENV
+          git fetch origin ${{ steps.get_base.outputs.base }}:refs/remotes/origin/${{ steps.get_base.outputs.base }}
+          found=false
+          touch files_with_noindex_or_nofollow.txt
+          while IFS= read -r file; do
+            if git diff origin/${{ steps.get_base.outputs.base }} -- "$file" | grep -q -e 'noindex' -e 'nofollow'; then
+              echo "$file" >> files_with_noindex_or_nofollow.txt
+              found=true
+            fi
+          done < <(git diff --name-only origin/${{ steps.get_base.outputs.base }})
+
+          if [ "$found" = true ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
           fi
+          [ -f files_with_noindex_or_nofollow.txt ] && cat files_with_noindex_or_nofollow.txt
 
       - name: Notify Slack if found
-        if: env.FOUND == 'yes'
+        if: steps.check_diff.outputs.found == 'true'
         uses: 8398a7/action-slack@v3
         with:
           status: custom
