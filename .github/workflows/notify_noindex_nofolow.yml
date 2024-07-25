@@ -27,7 +27,7 @@ jobs:
         run: |
           DIFF_OUTPUT=$(git diff ${{ env.MERGE_BASE }} ${{ github.event.pull_request.merge_commit_sha }} -- '*.html' '*.vue')
           echo "$DIFF_OUTPUT"
-          if echo "$DIFF_OUTPUT" | grep -E 'noindex|nofollow'; then
+          if echo "$DIFF_OUTPUT" | grep -q -e 'noindex' -e 'nofollow'; then
             echo "FOUND=yes" >> $GITHUB_ENV
           fi
 
