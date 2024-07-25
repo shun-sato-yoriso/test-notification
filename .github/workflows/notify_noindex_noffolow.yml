@@ -29,6 +29,7 @@ jobs:
           echo "$DIFF_OUTPUT"
           if echo "$DIFF_OUTPUT" | grep -E 'noindex|nofollow'; then
             echo "FOUND=yes" >> $GITHUB_ENV
+          fi
 
       - name: Notify Slack if found
         if: env.FOUND == 'yes'
