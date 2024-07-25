@@ -1,3 +1,13 @@
+name: Notify Slack on noindex or nofollow in diffs
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - staging-delta
+      - develop
+      - main
+
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
