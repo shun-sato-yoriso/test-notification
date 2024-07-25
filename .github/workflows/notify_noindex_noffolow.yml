@@ -1,6 +1,7 @@
 name: Notify Slack on noindex or nofollow in diffs
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - staging-delta
       - develop
@@ -9,6 +10,7 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -18,16 +20,15 @@ jobs:
       - name: Get Merge Base
         id: mergebase
         run: |
-          echo "MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.sha }})" >> $GITHUB_ENV
+          echo "MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.event.pull_request.merge_commit_sha }})" >> $GITHUB_ENV
 
       - name: Check for noindex or nofollow
         id: check
         run: |
-          DIFF_OUTPUT=$(git diff ${{ env.MERGE_BASE }} ${{ github.sha }} -- '*.html' '*.vue')
+          DIFF_OUTPUT=$(git diff ${{ env.MERGE_BASE }} ${{ github.event.pull_request.merge_commit_sha }} -- '*.html' '*.vue')
           echo "$DIFF_OUTPUT"
-          if echo "$DIFF_OUTPUT" | grep -Eq "noindex|nofollow"; then
+          if echo "$DIFF_OUTPUT" | grep -E 'noindex|nofollow'; then
             echo "FOUND=yes" >> $GITHUB_ENV
-          fi
 
       - name: Notify Slack if found
         if: env.FOUND == 'yes'
@@ -43,7 +44,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "警告: noindex もしくは nofollow が含まれるコミットがマージされました！"
+                    "text": "警告: noindex または nofollow が含まれるコミットがマージされました！"
                   }
                 }]
               }]
