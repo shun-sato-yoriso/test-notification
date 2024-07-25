@@ -1,0 +1,52 @@
+name: Notify Slack on noindex,nofollow in diffs
+on:
+  push:
+    branches:
+      - staging-delta
+      - develop
+      - main
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
+
+      - name: Get Merge Base
+        id: mergebase
+        run: |
+          echo "MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.sha }})" >> $GITHUB_ENV
+
+      - name: Check for noindex,nofollow
+        id: check
+        run: |
+          DIFF_OUTPUT=$(git diff ${{ env.MERGE_BASE }} ${{ github.sha }} -- '*.html' '*.vue')
+          echo "$DIFF_OUTPUT"
+          if echo "$DIFF_OUTPUT" | grep -q "noindex,nofollow"; then
+            echo "FOUND=yes" >> $GITHUB_ENV
+          fi
+
+      - name: Notify Slack if found
+        if: env.FOUND == 'yes'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+          custom_payload: |
+            {
+              "attachments": [{
+                "color": "#ff0000",
+                "blocks": [{
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "警告: noindex,nofollow が含まれるコミットがマージされました！"
+                  }
+                }]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,84 @@
+name: Check for 'noindex' or 'nofollow' in PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-diff:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Get PR base branch
+      id: get_base
+      run: echo "::set-output name=base::$(jq -r .pull_request.base.ref < $GITHUB_EVENT_PATH)"
+
+    - name: Fetch base branch
+      run: |
+        git fetch origin ${{ steps.get_base.outputs.base }}:refs/remotes/origin/${{ steps.get_base.outputs.base }}
+
+    - name: Get changed files
+      run: |
+        git diff --name-only origin/${{ steps.get_base.outputs.base }} > diff.txt
+        cat diff.txt  # デバッグ用に変更されたファイルを出力
+
+    - name: Check files for 'noindex' or 'nofollow'
+      id: check_files
+      run: |
+        touch files_with_noindex_or_nofollow.txt
+        found=false
+        while IFS= read -r file; do
+          if grep -q -e 'noindex' -e 'nofollow' "$file"; then
+            echo "$file" >> files_with_noindex_or_nofollow.txt
+            found=true
+          fi
+        done < diff.txt
+
+        if [ "$found" = true ]; then
+          echo "::set-output name=found::true"
+        else
+          echo "::set-output name=found::false"
+        fi
+        cat files_with_noindex_or_nofollow.txt  # デバッグ用に該当ファイルを出力
+
+    - name: Fetch existing comments
+      id: fetch_comments
+      if: steps.check_files.outputs.found == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ github.event.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/comments" > comments.json
+        cat comments.json  # デバッグ用に既存コメントを出力
+
+    - name: Get latest commit in PR
+      id: get_commit
+      run: echo "::set-output name=commit::$(jq -r .pull_request.head.sha < $GITHUB_EVENT_PATH)"
+
+    - name: Post comments on files
+      if: steps.check_files.outputs.found == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ github.event.number }}
+        REPO: ${{ github.repository }}
+        COMMIT_ID: ${{ steps.get_commit.outputs.commit }}
+      run: |
+        while IFS= read -r file; do
+          BODY=" \`noindex\` および \`nofollow\` が \`${file}\`内に含まれています。影響範囲と確認内容が適切かを確認してください。担当者とレビュワーは確認済みであることをコメントしてください。"
+          
+          # Check if the comment already exists
+          EXISTING_COMMENT=$(jq -r --arg path "$file" --argjson line 1 \
+            '.[] | select(.path == $path and .line == $line) | .body' comments.json)
+          
+          if [ -z "$EXISTING_COMMENT" ]; then
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -d "$(jq -n --arg body "$BODY" --arg path "$file" --arg commit_id "$COMMIT_ID" --argjson line 1 \
+            '{body: $body, path: $path, commit_id: $commit_id, line: $line}')" \
+            "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/comments"
+          fi
+        done < files_with_noindex_or_nofollow.txt
