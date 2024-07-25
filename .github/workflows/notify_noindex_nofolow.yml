@@ -63,7 +63,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*Description:* \`${{ github.event.pull_request.body | replace('\n', '\\n') }}\`"
+                        "text": "*Description:* ${{github.event.pull_request.body }}"
                       }
                     ]
                   },
