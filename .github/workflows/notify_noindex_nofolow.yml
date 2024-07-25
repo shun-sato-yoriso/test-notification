@@ -16,37 +16,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Fetch all history for all branches and tags
-
-      - name: Get PR base branch
-        id: get_base
-        run: echo "base=$(jq -r .pull_request.base.ref < $GITHUB_EVENT_PATH)" >> $GITHUB_OUTPUT
+          fetch-depth: 0
 
       - name: Check diff for 'noindex' or 'nofollow'
-        id: check_diff
         run: |
-          git fetch origin ${{ steps.get_base.outputs.base }}
-          echo "Checking files from base branch: ${{ steps.get_base.outputs.base }}"
-          git diff origin/${{ steps.get_base.outputs.base }} --name-only > diff_files.txt
-          cat diff_files.txt
-          found=false
-          while IFS= read -r file; do
-            echo "Checking file: $file"
-            if git diff origin/${{ steps.get_base.outputs.base }} -- "$file" | grep -E 'noindex|nofollow'; then
-              echo "Found in file: $file"
-              echo "$file" >> files_with_noindex_or_nofollow.txt
-              found=true
-            fi
-          done < diff_files.txt
+          # マージ前のヘッドコミットを取得
+          HEAD_SHA=$(git rev-parse ${{ github.event.pull_request.head.sha }})
+          # ベースブランチのマージ直前のコミットを取得
+          BASE_SHA=$(git merge-base origin/${{ github.base_ref }} $HEAD_SHA)
 
-          if [ "$found" = true ]; then
-            echo "found=true" >> $GITHUB_OUTPUT
+          # マージ前のコミットとの差分をチェック
+          echo "Diff between $BASE_SHA and $HEAD_SHA"
+          if git diff $BASE_SHA $HEAD_SHA -- '*.html' '*.vue' | grep -Ei 'noindex|nofollow'; then
+            echo "Found 'noindex' or 'nofollow'"
+            FOUND=true
           else
-            echo "found=false" >> $GITHUB_OUTPUT
+            FOUND=false
           fi
+          echo "found=$FOUND" >> $GITHUB_ENV
 
       - name: Notify Slack if found
-        if: steps.check_diff.outputs.found == 'true'
+        if: env.found == 'true'
         uses: 8398a7/action-slack@v3
         with:
           status: custom
@@ -59,7 +49,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "警告: noindex または nofollow が含まれるコミットがマージされました！"
+                    "text": "警告: noindex または nofollow が含まれるコミットがマージされました"
                   }
                 }]
               }]
