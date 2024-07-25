@@ -45,14 +45,39 @@ jobs:
           custom_payload: |
             {
               "attachments": [{
-                "color": "#ff0000",
-                "blocks": [{
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "警告: noindex または nofollow が含まれるコミットがマージされました！"
+                "color": "#36a64f",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "警告: noindex または nofollow が含まれるコミットがマージされました！"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Title:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Description:* ${{
+github.event.pull_request.body }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "context",
+                    "elements": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "Review the changes in the <${{ github.event.pull_request.html_url }}|Pull Request>"
+                      }
+                    ]
                   }
-                }]
+                ]
               }]
             }
         env:
